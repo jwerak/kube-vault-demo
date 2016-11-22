@@ -1,0 +1,65 @@
+#+AUTHOR: Jakub Veverka (@velkyk)
+* Kube and vault controller demo
+source of inspiration and ~vault-controller~ code: https://github.com/kelseyhightower/vault-controller
+** Vault
+*** Prereq
+**** install ~minikube~
+https://github.com/kubernetes/minikube
+**** Start minikube
+~minikube start~
+*** Setup env
+#+BEGIN_SRC shell
+kubectl create namespace vault-controller
+#+END_SRC
+**** ~vault~
+#+BEGIN_SRC shell
+kubectl --namespace vault-controller create -f replicasets/vault.yaml
+kubectl --namespace vault-controller create -f services/vault.yaml
+#+END_SRC
+
+Vault is now available on ~http://vault:8200~ for other kube pods.
+**** ~vault-controller~
+#+BEGIN_SRC shell
+# Secret
+kubectl --namespace vault-controller  \
+  create secret generic vault-controller \
+  --from-literal "vault_token=3e4a5ba1-kube-422b-d1db-844979cab098"
+# Replicaset
+kubectl --namespace vault-controller create -f replicasets/vault-controller.yaml 
+# Service
+kubectl -n vault-controller create -f services/vault-controller.yaml
+#+END_SRC
+*** Example
+**** Setup
+#+BEGIN_SRC shell
+kubectl -n vault-controller create -f replicasets/vault-example.yaml
+#+END_SRC
+**** Observe
+***** vault-init
+#+BEGIN_SRC shell
+kubectl -n vault-controller logs \
+  $(kubectl -n vault-controller \
+    get pods -l app=vault-example \
+    -o jsonpath='{.items[0].metadata.name}') \
+  -c vault-init
+#+END_SRC
+***** vault-example
+#+BEGIN_SRC shell
+kubectl -n vault-controller logs \
+  $(kubectl -n vault-controller get pods \
+    -l app=vault-example \
+    -o jsonpath='{.items[0].metadata.name}') \
+  -c vault-example
+#+END_SRC
+***** Scale
+#+BEGIN_SRC shell
+# Scale
+kubectl -n vault-controller \
+  scale replicaset vault-example --replicas=3
+# Observe
+kubectl -n vault-controller logs \
+  $(kubectl -n vault-controller get pods \
+    -l app=vault-example \
+    -o jsonpath='{.items[1].metadata.name}') \
+  -c vault-example
+#+END_SRC

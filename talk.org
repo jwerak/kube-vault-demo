@@ -1,0 +1,172 @@
+#+REVEAL_HLEVEL: 1
+#+REVEAL_THEME: blood
+#+OPTIONS: toc:1 
+#+OPTIONS: timestamp:nil
+#+OPTIONS: num:nil
+#+AUTHOR: Jakub Veverka (@velkyk)
+#+Title: Kubernetes and Vault
+* Vault
+- Secure Secret Storage
+- Dynamic Secrets
+- Data Encryption
+- Leasing and Renewal
+- Revocation
+#+BEGIN_NOTES
+- *Secure Secret Storage*: Arbitrary key/value secrets can be stored in Vault. Vault encrypts these secrets prior to writing them to persistent storage, so gaining access to the raw storage isn't enough to access your secrets. Vault can write to disk, Consul, and more.
+- *Dynamic Secrets*: Vault can generate secrets on-demand for some systems, such as AWS or SQL databases. For example, when an application needs to access an S3 bucket, it asks Vault for credentials, and Vault will generate an AWS keypair with valid permissions on demand. After creating these dynamic secrets, Vault will also automatically revoke them after the lease is up.
+- *Data Encryption*: Vault can encrypt and decrypt data without storing it. This allows security teams to define encryption parameters and developers to store encrypted data in a location such as SQL without having to design their own encryption methods.
+- *Leasing and Renewal*: All secrets in Vault have a lease associated with them. At the end of the lease, Vault will automatically revoke that secret. Clients are able to renew leases via built-in renew APIs.
+- *Revocation*: Vault has built-in support for secret revocation. Vault can revoke not only single secrets, but a tree of secrets, for example all secrets read by a specific user, or all secrets of a particular type. Revocation assists in key rolling as well as locking down systems in the case of an intrusion.
+#+END_NOTES
+** Vault - authentication
+- authentication works by verifying your identity and then generating a [[https://www.vaultproject.io/docs/concepts/tokens.html][tokens]] to associate with that identity,
+- tokens map to information,
+- the most important information mapped to a token is a set of one or more attached policies.
+- [[https://www.vaultproject.io/docs/auth/index.html][authentication backends]]:
+  - AppRole
+  - Github
+  - LDAP
+  - ...
+** Vault - authorization
+Policy definition:
+#+BEGIN_SRC hcl
+path "sys/*" {
+  policy = "deny"
+}
+
+path "secret/*" {
+  policy = "write"
+}
+
+path "secret/foo" {
+  policy = "read"
+  capabilities = ["create", "sudo"]
+}
+
+path "secret/super-secret" {
+  capabilities = ["deny"]
+}
+#+END_SRC
+** Vault - response wraping 
+
+* Kubernetes
+The orchestrator
+** Annotations
+- Arbitrary non-identifying metadata, for retrieval by API clients such as tools, libraries, etc.
+- Everything that doesn't belong to labels.
+
+#+BEGIN_SRC yaml
+metadata:
+  name: nginx
+  annotations:
+    key1: value1
+    key2: value2
+#+END_SRC
+
+#+BEGIN_NOTES
+Possible information that could be recorded in annotations:
+- fields managed by a declarative configuration layer, to distinguish them from client- and/or server-set default values and other auto-generated fields, fields set by auto-sizing/auto-scaling systems, etc., in order to facilitate merging
+- build/release/image information (timestamps, release ids, git branch, PR numbers, image hashes, registry address, etc.)
+- pointers to logging/monitoring/analytics/audit repos
+- client library/tool information (e.g. for debugging purposes – name, version, build info)
+- other user and/or tool/system provenance info, such as URLs of related objects from other ecosystem components
+- lightweight rollout tool metadata (config and/or checkpoints)
+- phone/pager number(s) of person(s) responsible, or directory entry where that info could be found, such as a team website
+- Yes, this information could be stored in an external database or directory, but that would make it much harder to produce shared client libraries and tools for deployment, management, introspection, etc.
+#+END_NOTES
+** Annotations - initialization
+#+BEGIN_SRC yaml
+metadata:
+  name: nginx
+  annotations:
+    pod.beta.kubernetes.io/init-containers: '[
+        {
+            "name": "install",
+            "image": "busybox",
+            "command": ["wget", "-O", "/work-dir/index.html", "http://kubernetes.io/index.html"],
+            "volumeMounts": [
+                {
+                    "name": "workdir",
+                    "mountPath": "/work-dir"
+                }
+            ]
+        }
+    ]'
+#+END_SRC
+
+#+BEGIN_NOTES
+Applications often need a set of initialization steps prior to performing their day job. This may include:
+- Waiting for other components (like a database or web service) to be available
+- Performing configuration templating from environment variables into a config file
+- Registering the pod into a central database, or fetching remote configuration from that database
+- Downloading application dependencies, seed data, or preconfiguring disk
+#+END_NOTES
+* PoC DEMO
+[[./pics/vault-controller-flow.png]]
+** Vault controller
+#+ATTR_REVEAL: :frag (appear)
+- Listens to token request from pods (pod namespace and name as input),
+- verify pod at kube apiserver and retrieve policies and ttl (pod info is trusted),
+- generate wrapped token request,
+- post token of wrapped request to Init container.
+*** Vault controller request
+#+BEGIN_SRC js
+&api.TokenCreateRequest{
+  Policies: strings.Split(policies, ","),
+  Metadata: map[string]string{
+    "host_ip":   pod.Status.HostIP,
+    "namespace": pod.Metadata.Namespace,
+    "pod_ip":    pod.Status.PodIP,
+    "pod_name":  pod.Metadata.Name,
+    "pod_uid":   pod.Metadata.Uid,
+  },
+  DisplayName: pod.Metadata.Name,
+  Period:      ttl,
+  NoParent:    true,
+  TTL:         ttl,
+}
+#+END_SRC
+** Init container
+*** Pod definition
+#+BEGIN_SRC yaml
+spec:
+  replicas: 1
+  template:
+    metadata:
+      annotations:
+        vaultproject.io/policies: default
+        vaultproject.io/ttl: "24h"
+        pod.alpha.kubernetes.io/init-containers: '[{
+            "name": "vault-init",
+            "image": "kelseyhightower/vault-init:0.0.1",
+            "env": [
+              {
+                "name": "POD_NAME",
+                "valueFrom": {"fieldRef": {"fieldPath": "metadata.name"}}
+              },
+              { 
+                "name": "POD_NAMESPACE",
+                "valueFrom": {"fieldRef": {"fieldPath": "metadata.namespace"}}
+              }            ],
+...
+            "volumeMounts": [
+              {
+                "name": "vault-token",
+                "mountPath": "/var/run/secrets/vaultproject.io"}]}]'
+    spec:
+      containers:
+        - name: vault-example
+          image: "kelseyhightower/vault-example:0.0.1"
+          volumeMounts:
+            - name: vault-token
+              mountPath: "/var/run/secrets/vaultproject.io"
+#+END_SRC
+*** Pod initialization
+#+ATTR_REVEAL: :frag (appear)
+- Request wrapped token from ~vault-controller~,
+- listen for wrapped token,
+- save token to local file and exit.
+- Main container starts  
+* Sources
+- [[https://github.com/kelseyhightower/vault-controller][Kelsey Hightower - kube-vault PoC]]
+- [[https://www.hashicorp.com/blog/vault-0.6.html#response-wrapping][Vault wrapping]]

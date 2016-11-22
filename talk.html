@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Kubernetes and Vault</title>
+<meta name="author" content="(Jakub Veverka (@velkyk))"/>
+<style type="text/css">
+.underline { text-decoration: underline; }
+</style>
+<link rel="stylesheet" href="file:///home/jveverka/projects/github/reveal.js/css/reveal.css"/>
+
+<link rel="stylesheet" href="file:///home/jveverka/projects/github/reveal.js/css/theme/blood.css" id="theme"/>
+
+
+<!-- If the query includes 'print-pdf', include the PDF print sheet -->
+<script>
+    if( window.location.search.match( /print-pdf/gi ) ) {
+        var link = document.createElement( 'link' );
+        link.rel = 'stylesheet';
+        link.type = 'text/css';
+        link.href = 'file:///home/jveverka/projects/github/reveal.js/css/print/pdf.css';
+        document.getElementsByTagName( 'head' )[0].appendChild( link );
+    }
+</script>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+<section id="sec-title-slide"><h1 class="title">Kubernetes and Vault</h1><h2 class="author">Jakub Veverka (@velkyk)</h2>
+</section>
+<section id="table-of-contents">
+<div id="table-of-contents">
+<h2>Table of Contents</h2>
+<div id="text-table-of-contents">
+<ul>
+<li><a href="#/slide-org77c8bcb">Vault</a></li>
+<li><a href="#/slide-orgf375613">Kubernetes</a></li>
+<li><a href="#/slide-orgcde83ee">PoC DEMO</a></li>
+<li><a href="#/slide-org8e126d5">Sources</a></li>
+</ul>
+</div>
+</div>
+</section>
+<section>
+<section id="slide-org77c8bcb">
+<h2 id="org77c8bcb">Vault</h2>
+<ul>
+<li>Secure Secret Storage</li>
+<li>Dynamic Secrets</li>
+<li>Data Encryption</li>
+<li>Leasing and Renewal</li>
+<li>Revocation</li>
+
+</ul>
+<aside class="notes">
+<ul>
+<li><b>Secure Secret Storage</b>: Arbitrary key/value secrets can be stored in Vault. Vault encrypts these secrets prior to writing them to persistent storage, so gaining access to the raw storage isn't enough to access your secrets. Vault can write to disk, Consul, and more.</li>
+<li><b>Dynamic Secrets</b>: Vault can generate secrets on-demand for some systems, such as AWS or SQL databases. For example, when an application needs to access an S3 bucket, it asks Vault for credentials, and Vault will generate an AWS keypair with valid permissions on demand. After creating these dynamic secrets, Vault will also automatically revoke them after the lease is up.</li>
+<li><b>Data Encryption</b>: Vault can encrypt and decrypt data without storing it. This allows security teams to define encryption parameters and developers to store encrypted data in a location such as SQL without having to design their own encryption methods.</li>
+<li><b>Leasing and Renewal</b>: All secrets in Vault have a lease associated with them. At the end of the lease, Vault will automatically revoke that secret. Clients are able to renew leases via built-in renew APIs.</li>
+<li><b>Revocation</b>: Vault has built-in support for secret revocation. Vault can revoke not only single secrets, but a tree of secrets, for example all secrets read by a specific user, or all secrets of a particular type. Revocation assists in key rolling as well as locking down systems in the case of an intrusion.</li>
+
+</ul>
+
+</aside>
+</section>
+<section id="slide-orga28eec2">
+<h3 id="orga28eec2">Vault - authentication</h3>
+<ul>
+<li>authentication works by verifying your identity and then generating a <a href="https://www.vaultproject.io/docs/concepts/tokens.html">tokens</a> to associate with that identity,</li>
+<li>tokens map to information,</li>
+<li>the most important information mapped to a token is a set of one or more attached policies.</li>
+<li><a href="https://www.vaultproject.io/docs/auth/index.html">authentication backends</a>:
+<ul>
+<li>AppRole</li>
+<li>Github</li>
+<li>LDAP</li>
+<li>&#x2026;</li>
+
+</ul></li>
+
+</ul>
+</section>
+<section id="slide-org136c55e">
+<h3 id="org136c55e">Vault - authorization</h3>
+<p>
+Policy definition:
+</p>
+<div class="org-src-container">
+
+<pre  class="src src-hcl">path "sys/*" {
+  policy = "deny"
+}
+
+path "secret/*" {
+  policy = "write"
+}
+
+path "secret/foo" {
+  policy = "read"
+  capabilities = ["create", "sudo"]
+}
+
+path "secret/super-secret" {
+  capabilities = ["deny"]
+}
+</pre>
+</div>
+</section>
+<section id="slide-orga8f7848">
+<h3 id="orga8f7848">Vault - response wraping</h3>
+
+</section>
+</section>
+<section>
+<section id="slide-orgf375613">
+<h2 id="orgf375613">Kubernetes</h2>
+<p>
+The orchestrator
+</p>
+</section>
+<section id="slide-org0d22fe7">
+<h3 id="org0d22fe7">Annotations</h3>
+<ul>
+<li>Arbitrary non-identifying metadata, for retrieval by API clients such as tools, libraries, etc.</li>
+<li>Everything that doesn't belong to labels.</li>
+
+</ul>
+
+<div class="org-src-container">
+
+<pre  class="src src-yaml"><span style="color: #715ab1;">metadata</span>:
+  <span style="color: #715ab1;">name</span>: nginx
+  <span style="color: #715ab1;">annotations</span>:
+    <span style="color: #715ab1;">key1</span>: value1
+    <span style="color: #715ab1;">key2</span>: value2
+</pre>
+</div>
+
+<aside class="notes">
+<p>
+Possible information that could be recorded in annotations:
+</p>
+<ul>
+<li>fields managed by a declarative configuration layer, to distinguish them from client- and/or server-set default values and other auto-generated fields, fields set by auto-sizing/auto-scaling systems, etc., in order to facilitate merging</li>
+<li>build/release/image information (timestamps, release ids, git branch, PR numbers, image hashes, registry address, etc.)</li>
+<li>pointers to logging/monitoring/analytics/audit repos</li>
+<li>client library/tool information (e.g. for debugging purposes – name, version, build info)</li>
+<li>other user and/or tool/system provenance info, such as URLs of related objects from other ecosystem components</li>
+<li>lightweight rollout tool metadata (config and/or checkpoints)</li>
+<li>phone/pager number(s) of person(s) responsible, or directory entry where that info could be found, such as a team website</li>
+<li>Yes, this information could be stored in an external database or directory, but that would make it much harder to produce shared client libraries and tools for deployment, management, introspection, etc.</li>
+
+</ul>
+
+</aside>
+</section>
+<section id="slide-orgb8f0726">
+<h3 id="orgb8f0726">Annotations - initialization</h3>
+<div class="org-src-container">
+
+<pre  class="src src-yaml"><span style="color: #715ab1;">metadata</span>:
+  <span style="color: #715ab1;">name</span>: nginx
+  <span style="color: #715ab1;">annotations</span>:
+    <span style="color: #715ab1;">pod.beta.kubernetes.io/init-containers</span>: <span style="color: #2d9574;">'[</span>
+<span style="color: #2d9574;">        {</span>
+<span style="color: #2d9574;">            "name": "install",</span>
+<span style="color: #2d9574;">            "image": "busybox",</span>
+<span style="color: #2d9574;">            "command": ["wget", "-O", "/work-dir/index.html", "http://kubernetes.io/index.html"],</span>
+<span style="color: #2d9574;">            "volumeMounts": [</span>
+<span style="color: #2d9574;">                {</span>
+<span style="color: #2d9574;">                    "name": "workdir",</span>
+<span style="color: #2d9574;">                    "mountPath": "/work-dir"</span>
+<span style="color: #2d9574;">                }</span>
+<span style="color: #2d9574;">            ]</span>
+<span style="color: #2d9574;">        }</span>
+<span style="color: #2d9574;">    ]'</span>
+</pre>
+</div>
+
+<aside class="notes">
+<p>
+Applications often need a set of initialization steps prior to performing their day job. This may include:
+</p>
+<ul>
+<li>Waiting for other components (like a database or web service) to be available</li>
+<li>Performing configuration templating from environment variables into a config file</li>
+<li>Registering the pod into a central database, or fetching remote configuration from that database</li>
+<li>Downloading application dependencies, seed data, or preconfiguring disk</li>
+
+</ul>
+
+</aside>
+</section>
+</section>
+<section>
+<section id="slide-orgcde83ee">
+<h2 id="orgcde83ee">PoC DEMO</h2>
+
+<div class="figure">
+<p><img src="./pics/vault-controller-flow.png" alt="vault-controller-flow.png" />
+</p>
+</div>
+</section>
+<section id="slide-org8a184ac">
+<h3 id="org8a184ac">Vault controller</h3>
+<ul>
+<li class="fragment appear">Listens to token request from pods (pod namespace and name as input),</li>
+<li class="fragment appear">verify pod at kube apiserver and retrieve policies and ttl (pod info is trusted),</li>
+<li class="fragment appear">generate wrapped token request,</li>
+<li class="fragment appear">post token of wrapped request to Init container.</li>
+
+</ul>
+</section>
+<section id="slide-org475a51a">
+<h4 id="org475a51a">Vault controller request</h4>
+<div class="org-src-container">
+
+<pre  class="src src-js">&amp;api.TokenCreateRequest<span style="color: #3a81c3;">{</span>
+  Policies: strings.Split<span style="color: #6c3163;">(</span>policies, <span style="color: #2d9574;">","</span><span style="color: #6c3163;">)</span>,
+  Metadata: map<span style="color: #6c3163;">[</span>string<span style="color: #6c3163;">]</span>string<span style="color: #6c3163;">{</span>
+    <span style="color: #2d9574;">"host_ip"</span>:   pod.Status.HostIP,
+    <span style="color: #2d9574;">"namespace"</span>: pod.Metadata.Namespace,
+    <span style="color: #2d9574;">"pod_ip"</span>:    pod.Status.PodIP,
+    <span style="color: #2d9574;">"pod_name"</span>:  pod.Metadata.Name,
+    <span style="color: #2d9574;">"pod_uid"</span>:   pod.Metadata.Uid,
+  <span style="color: #6c3163;">}</span>,
+  DisplayName: pod.Metadata.Name,
+  Period:      ttl,
+  NoParent:    <span style="color: #4e3163;">true</span>,
+  TTL:         ttl,
+<span style="color: #3a81c3;">}</span>
+</pre>
+</div>
+</section>
+<section id="slide-org231c174">
+<h3 id="org231c174">Init container</h3>
+<div class="outline-text-3" id="text-org231c174">
+</div></section>
+<section id="slide-org1b3675e">
+<h4 id="org1b3675e">Pod definition</h4>
+<div class="org-src-container">
+
+<pre  class="src src-yaml"><span style="color: #715ab1;">spec</span>:
+  <span style="color: #715ab1;">replicas</span>: 1
+  <span style="color: #715ab1;">template</span>:
+    <span style="color: #715ab1;">metadata</span>:
+      <span style="color: #715ab1;">annotations</span>:
+        <span style="color: #715ab1;">vaultproject.io/policies</span>: default
+        <span style="color: #715ab1;">vaultproject.io/ttl</span>: <span style="color: #2d9574;">"24h"</span>
+        <span style="color: #715ab1;">pod.alpha.kubernetes.io/init-containers</span>: <span style="color: #2d9574;">'[{</span>
+<span style="color: #2d9574;">            "name": "vault-init",</span>
+<span style="color: #2d9574;">            "image": "kelseyhightower/vault-init:0.0.1",</span>
+<span style="color: #2d9574;">            "env": [</span>
+<span style="color: #2d9574;">              {</span>
+<span style="color: #2d9574;">                "name": "POD_NAME",</span>
+<span style="color: #2d9574;">                "valueFrom": {"fieldRef": {"fieldPath": "metadata.name"}}</span>
+<span style="color: #2d9574;">              },</span>
+<span style="color: #2d9574;">              { </span>
+<span style="color: #2d9574;">                "name": "POD_NAMESPACE",</span>
+<span style="color: #2d9574;">                "valueFrom": {"fieldRef": {"fieldPath": "metadata.namespace"}}</span>
+<span style="color: #2d9574;">              }            ],</span>
+<span style="color: #2d9574;">...</span>
+<span style="color: #2d9574;">            "volumeMounts": [</span>
+<span style="color: #2d9574;">              {</span>
+<span style="color: #2d9574;">                "name": "vault-token",</span>
+<span style="color: #2d9574;">                "mountPath": "/var/run/secrets/vaultproject.io"}]}]'</span>
+    <span style="color: #715ab1;">spec</span>:
+      <span style="color: #715ab1;">containers</span>:
+        - <span style="color: #715ab1;">name</span>: vault-example
+          <span style="color: #715ab1;">image</span>: <span style="color: #2d9574;">"kelseyhightower/vault-example:0.0.1"</span>
+          <span style="color: #715ab1;">volumeMounts</span>:
+            - <span style="color: #715ab1;">name</span>: vault-token
+              <span style="color: #715ab1;">mountPath</span>: <span style="color: #2d9574;">"/var/run/secrets/vaultproject.io"</span>
+</pre>
+</div>
+</section>
+<section id="slide-org09cb36d">
+<h4 id="org09cb36d">Pod initialization</h4>
+<ul>
+<li class="fragment appear">Request wrapped token from <code>vault-controller</code>,</li>
+<li class="fragment appear">listen for wrapped token,</li>
+<li class="fragment appear">save token to local file and exit.</li>
+<li class="fragment appear">Main container starts</li>
+
+</ul>
+</section>
+</section>
+<section>
+<section id="slide-org8e126d5">
+<h2 id="org8e126d5">Sources</h2>
+<ul>
+<li><a href="https://github.com/kelseyhightower/vault-controller">Kelsey Hightower - kube-vault PoC</a></li>
+<li><a href="https://www.hashicorp.com/blog/vault-0.6.html#response-wrapping">Vault wrapping</a></li>
+
+</ul>
+</section>
+</section>
+</div>
+</div>
+<script src="file:///home/jveverka/projects/github/reveal.js/lib/js/head.min.js"></script>
+<script src="file:///home/jveverka/projects/github/reveal.js/js/reveal.js"></script>
+
+<script>
+// Full list of configuration options available here:
+// https://github.com/hakimel/reveal.js#configuration
+Reveal.initialize({
+
+controls: true,
+progress: true,
+history: false,
+center: true,
+slideNumber: 'c',
+rollingLinks: false,
+keyboard: true,
+overview: true,
+
+theme: Reveal.getQueryHash().theme, // available themes are in /css/theme
+transition: Reveal.getQueryHash().transition || 'default', // default/cube/page/concave/zoom/linear/fade/none
+transitionSpeed: 'default',
+multiplex: {
+    secret: '', // null if client
+    id: '', // id, obtained from socket.io server
+    url: '' // Location of socket.io server
+},
+
+// Optional libraries used to extend on reveal.js
+dependencies: [
+ { src: 'file:///home/jveverka/projects/github/reveal.js/lib/js/classList.js', condition: function() { return !document.body.classList; } },
+ { src: 'file:///home/jveverka/projects/github/reveal.js/plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+ { src: 'file:///home/jveverka/projects/github/reveal.js/plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+ { src: 'file:///home/jveverka/projects/github/reveal.js/plugin/zoom-js/zoom.js', async: true, condition: function() { return !!document.body.classList; } },
+ { src: 'file:///home/jveverka/projects/github/reveal.js/plugin/notes/notes.js', async: true, condition: function() { return !!document.body.classList; } }]
+});
+</script>
+</body>
+</html>
