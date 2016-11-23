@@ -33,17 +33,17 @@
 <h2>Table of Contents</h2>
 <div id="text-table-of-contents">
 <ul>
-<li><a href="#/slide-org77c8bcb">Vault</a></li>
-<li><a href="#/slide-orgf375613">Kubernetes</a></li>
-<li><a href="#/slide-orgcde83ee">PoC DEMO</a></li>
-<li><a href="#/slide-org8e126d5">Sources</a></li>
+<li><a href="#/slide-orge4bea40">Vault</a></li>
+<li><a href="#/slide-orgff16c36">Kubernetes</a></li>
+<li><a href="#/slide-org7762fff">PoC DEMO</a></li>
+<li><a href="#/slide-org3e3d601">Sources</a></li>
 </ul>
 </div>
 </div>
 </section>
 <section>
-<section id="slide-org77c8bcb">
-<h2 id="org77c8bcb">Vault</h2>
+<section id="slide-orge4bea40">
+<h2 id="orge4bea40">Vault</h2>
 <ul>
 <li>Secure Secret Storage</li>
 <li>Dynamic Secrets</li>
@@ -64,8 +64,8 @@
 
 </aside>
 </section>
-<section id="slide-orga28eec2">
-<h3 id="orga28eec2">Vault - authentication</h3>
+<section id="slide-org354226e">
+<h3 id="org354226e">Vault - authentication</h3>
 <ul>
 <li>authentication works by verifying your identity and then generating a <a href="https://www.vaultproject.io/docs/concepts/tokens.html">tokens</a> to associate with that identity,</li>
 <li>tokens map to information,</li>
@@ -81,8 +81,8 @@
 
 </ul>
 </section>
-<section id="slide-org136c55e">
-<h3 id="org136c55e">Vault - authorization</h3>
+<section id="slide-org86dff23">
+<h3 id="org86dff23">Vault - authorization</h3>
 <p>
 Policy definition:
 </p>
@@ -107,20 +107,20 @@ path "secret/super-secret" {
 </pre>
 </div>
 </section>
-<section id="slide-orga8f7848">
-<h3 id="orga8f7848">Vault - response wraping</h3>
+<section id="slide-org3f0c0fc">
+<h3 id="org3f0c0fc">Vault - response wraping</h3>
 
 </section>
 </section>
 <section>
-<section id="slide-orgf375613">
-<h2 id="orgf375613">Kubernetes</h2>
+<section id="slide-orgff16c36">
+<h2 id="orgff16c36">Kubernetes</h2>
 <p>
 The orchestrator
 </p>
 </section>
-<section id="slide-org0d22fe7">
-<h3 id="org0d22fe7">Annotations</h3>
+<section id="slide-org9da8a98">
+<h3 id="org9da8a98">Annotations</h3>
 <ul>
 <li>Arbitrary non-identifying metadata, for retrieval by API clients such as tools, libraries, etc.</li>
 <li>Everything that doesn't belong to labels.</li>
@@ -155,8 +155,8 @@ Possible information that could be recorded in annotations:
 
 </aside>
 </section>
-<section id="slide-orgb8f0726">
-<h3 id="orgb8f0726">Annotations - initialization</h3>
+<section id="slide-orgee410b3">
+<h3 id="orgee410b3">Annotations - initialization</h3>
 <div class="org-src-container">
 
 <pre  class="src src-yaml"><span style="color: #715ab1;">metadata</span>:
@@ -194,16 +194,16 @@ Applications often need a set of initialization steps prior to performing their 
 </section>
 </section>
 <section>
-<section id="slide-orgcde83ee">
-<h2 id="orgcde83ee">PoC DEMO</h2>
+<section id="slide-org7762fff">
+<h2 id="org7762fff">PoC DEMO</h2>
 
 <div class="figure">
 <p><img src="./pics/vault-controller-flow.png" alt="vault-controller-flow.png" />
 </p>
 </div>
 </section>
-<section id="slide-org8a184ac">
-<h3 id="org8a184ac">Vault controller</h3>
+<section id="slide-org25e0533">
+<h3 id="org25e0533">Vault controller</h3>
 <ul>
 <li class="fragment appear">Listens to token request from pods (pod namespace and name as input),</li>
 <li class="fragment appear">verify pod at kube apiserver and retrieve policies and ttl (pod info is trusted),</li>
@@ -212,8 +212,8 @@ Applications often need a set of initialization steps prior to performing their 
 
 </ul>
 </section>
-<section id="slide-org475a51a">
-<h4 id="org475a51a">Vault controller request</h4>
+<section id="slide-orga07068d">
+<h4 id="orga07068d">Vault controller request</h4>
 <div class="org-src-container">
 
 <pre  class="src src-js">&amp;api.TokenCreateRequest<span style="color: #3a81c3;">{</span>
@@ -233,12 +233,12 @@ Applications often need a set of initialization steps prior to performing their 
 </pre>
 </div>
 </section>
-<section id="slide-org231c174">
-<h3 id="org231c174">Init container</h3>
-<div class="outline-text-3" id="text-org231c174">
+<section id="slide-org0005853">
+<h3 id="org0005853">Init container</h3>
+<div class="outline-text-3" id="text-org0005853">
 </div></section>
-<section id="slide-org1b3675e">
-<h4 id="org1b3675e">Pod definition</h4>
+<section id="slide-orgc6fda78">
+<h4 id="orgc6fda78">Pod definition</h4>
 <div class="org-src-container">
 
 <pre  class="src src-yaml"><span style="color: #715ab1;">spec</span>:
@@ -275,8 +275,8 @@ Applications often need a set of initialization steps prior to performing their 
 </pre>
 </div>
 </section>
-<section id="slide-org09cb36d">
-<h4 id="org09cb36d">Pod initialization</h4>
+<section id="slide-orgd4b3a5d">
+<h4 id="orgd4b3a5d">Pod initialization</h4>
 <ul>
 <li class="fragment appear">Request wrapped token from <code>vault-controller</code>,</li>
 <li class="fragment appear">listen for wrapped token,</li>
@@ -287,8 +287,8 @@ Applications often need a set of initialization steps prior to performing their 
 </section>
 </section>
 <section>
-<section id="slide-org8e126d5">
-<h2 id="org8e126d5">Sources</h2>
+<section id="slide-org3e3d601">
+<h2 id="org3e3d601">Sources</h2>
 <ul>
 <li><a href="https://github.com/kelseyhightower/vault-controller">Kelsey Hightower - kube-vault PoC</a></li>
 <li><a href="https://www.hashicorp.com/blog/vault-0.6.html#response-wrapping">Vault wrapping</a></li>

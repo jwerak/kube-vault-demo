@@ -4,6 +4,7 @@
 #+OPTIONS: timestamp:nil
 #+OPTIONS: num:nil
 #+AUTHOR: Jakub Veverka (@velkyk)
+#+REVEAL_ROOT: file:///home/jveverka/projects/github/reveal.js
 #+Title: Kubernetes and Vault
 * Vault
 - Secure Secret Storage
