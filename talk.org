@@ -5,7 +5,14 @@
 #+OPTIONS: num:nil
 #+AUTHOR: Jakub Veverka (@velkyk)
 #+REVEAL_ROOT: file:///home/jveverka/projects/github/reveal.js
-#+Title: Kubernetes and Vault
+#+Title: kube and vault
+* What is this talk about?
+#+ATTR_REVEAL: :frag (appear)
+- Short PoC - don't try this at home (Production)
+- Quick Vault overview
+- Quick review of kube annotations feature
+- How to generate Vault token for pod
+- How to assign Vault policy for each pod based on its annotations.
 * Vault
 - Secure Secret Storage
 - Dynamic Secrets
@@ -49,7 +56,9 @@ path "secret/super-secret" {
 }
 #+END_SRC
 ** Vault - response wraping 
-
+- Generate Vault token with required privileges and store them in chubby,
+- generate wrapper token with TTL,
+- return wrapper token that is passed to original client.
 * Kubernetes
 The orchestrator
 ** Annotations
